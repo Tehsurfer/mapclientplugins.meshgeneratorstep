@@ -270,11 +270,12 @@ class MeshGeneratorWidget(QtGui.QWidget):
 
 
     def _EEGAnimationClicked(self):
-        if self.data:
-            self.scaleCacheData()
-            self._ecg_graphics.setRegion(self._generator_model.getRegion())
-            self._ecg_graphics.createGraphics()
-            self._ecg_graphics.initialiseSpectrum(self.data)
+        if self.data and self._ecg_graphics.initialised is False:
+                self.scaleCacheData()
+                self._ecg_graphics.setRegion(self._generator_model.getRegion())
+                self._ecg_graphics.createGraphics()
+                self._ecg_graphics.initialiseSpectrum(self.data)
+                self._ecg_graphics.initialised = True
         else:
             self.pw = pg.plot(title='Please load your data from blackfynn so we can show you your ECG data'
                               + '(Use the blackfynn API key)')
@@ -404,6 +405,9 @@ class MeshGeneratorWidget(QtGui.QWidget):
         meshTypeName = self._ui.meshType_comboBox.itemText(index)
         self._generator_model.setMeshTypeByName(meshTypeName)
         self._refreshMeshTypeOptions()
+        self._ecg_graphics.initialised = False
+        self._ecg_graphics.createGraphics()
+        self._ecg_graphics.initialiseSpectrum(self.data)
 
     def _meshTypeOptionCheckBoxClicked(self, checkBox):
         self._generator_model.setMeshTypeOption(checkBox.objectName(), checkBox.isChecked())

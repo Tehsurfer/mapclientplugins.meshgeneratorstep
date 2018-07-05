@@ -24,6 +24,7 @@ class EcgGraphics(object):
     """
 
     def __init__(self):
+        self.initialised = False
         pass
 
     def setRegion(self, region):
@@ -140,7 +141,7 @@ class EcgGraphics(object):
         self.nodeColours = []
         finite_element_field = []
         nodes = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
-        self.numberInModel = 8
+        self.numberInModel = nodes.getSize()
 
         #create all EEG subgroups
         colour = fm.createFieldFiniteElement(1)
@@ -162,8 +163,8 @@ class EcgGraphics(object):
             self.nodeColours[i].setSpectrum(spec)
             self.nodeColours[i].setDataField(colour)
             self.pointattrList.append(self.nodeColours[i].getGraphicspointattributes())
-            #self.pointattrList[i].setLabelText(1, f'ECG Node {i}')
-            #self.pointattrList[i].setLabelOffset([1.5, 1.5, 0])
+            # self.pointattrList[i].setLabelText(1, f'ECG Node {i}')
+            # self.pointattrList[i].setLabelOffset([1.5, 1.5, 0])
             self.pointattrList[i].setGlyphShapeType(Glyph.SHAPE_TYPE_SPHERE)
             self.pointattrList[i].setBaseSize([.05, .05, 2])
 
