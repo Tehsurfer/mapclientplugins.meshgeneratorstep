@@ -263,12 +263,10 @@ class MeshGeneratorWidget(QtGui.QWidget):
     def scaleData(self, key):
         numFrames = self._plane_model.getFrameCount()
         y = np.array(self.data['cache'][key])
-        yt = np.add(y, np.amin(y) * -1)
-        x = np.linspace(0, 1, len(yt))
-        xterp = np.linspace(0, 1, numFrames)
-        yterp = np.interp(xterp, x, yt)
-        y_scaled = np.multiply(yterp, 1 / np.amax(yterp))
-        return y_scaled
+        x = np.linspace(0, 4, len(y))
+        xterp = np.linspace(0, 4, numFrames)
+        yterp = np.interp(xterp, x, y)
+        return yterp
 
 
     def _EEGAnimationClicked(self):
@@ -276,6 +274,7 @@ class MeshGeneratorWidget(QtGui.QWidget):
             self.scaleCacheData()
             self._ecg_graphics.setRegion(self._generator_model.getRegion())
             self._ecg_graphics.createGraphics()
+            self._ecg_graphics.initialiseSpectrum(self.data)
         else:
             self.pw = pg.plot(title='Please load your data from blackfynn so we can show you your ECG data'
                               + '(Use the blackfynn API key)')
@@ -283,7 +282,7 @@ class MeshGeneratorWidget(QtGui.QWidget):
 
     def currentFrame(self, value):
         frame_count = self._plane_model.getFrameCount()
-        frame_vals = np.linspace(0,4,frame_count)
+        frame_vals = np.linspace(0, 4, frame_count)
         currentFrame = (np.abs(frame_vals - value)).argmin()
         return currentFrame
 
@@ -579,7 +578,7 @@ def _calculatePointOnPlane(self, x, y):
     near_plane_point = self.unproject(x, -y, 1.0)
     plane_point, plane_normal = self._model.getPlaneDescription()
     point_on_plane = calculateLinePlaneIntersection(near_plane_point, far_plane_point, plane_point, plane_normal)
-    #print(point_on_plane)
+    print(point_on_plane)
     return point_on_plane
 
 
