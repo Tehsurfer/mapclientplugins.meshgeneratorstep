@@ -39,18 +39,33 @@ class EcgGraphics(object):
         displaySurface.setDataField(constant)
 
 
+    def initialiseSpectrum(self, data):
+        maximum = -1000000
+        minimum = 1000000
+        for key in data['cache']:
+            array_max = max(data['cache'][key])
+            array_min = min(data['cache'][key])
+            maximum = max(array_max, maximum)
+            minimum = min(array_min, minimum)
+        specMod = self._scene.getSpectrummodule()
+        spectrum = specMod.findSpectrumByName('eegColourSpectrum')
+        spectrum_component = spectrum.getFirstSpectrumcomponent()
+        spectrum_component.setRangeMaximum(maximum)
+        spectrum_component.setRangeMinimum(minimum)
+
+
     def updateEEGnodeColours(self, values):
         fm = self._region.getFieldmodule()
-        self._scene.beginChange()
+        fm.beginChange()
         cache = fm.createFieldcache()
         colour = fm.findFieldByName('colour')
         colour = colour.castFiniteElement()
         nodeset = fm.findNodesetByName('nodes')
-        for i in range(100):
-            node = nodeset.findNodeByIdentifier(self.numberInModel+1+ (i % self.eegSize))
+        for i in range(self.eegSize):
+            node = nodeset.findNodeByIdentifier(self.numberInModel+1+ i)
             cache.setNode(node)
-            colour.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, values[(i % self.eegSize)])
-        self._scene.endChange()
+            colour.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, values[(i % (len(values)-1))])
+        fm.endChange()
 
     def initialiseTimeSequences(self, data):
         fm = self._region.getFieldmodule()
@@ -101,7 +116,7 @@ class EcgGraphics(object):
         #eeg_coord = eegModel.get_all_coordinates()
 
         grid_size = 1
-        elements_on_side = 10
+        elements_on_side = 20
 
         eeg_coord = []
 
@@ -147,8 +162,8 @@ class EcgGraphics(object):
             self.nodeColours[i].setSpectrum(spec)
             self.nodeColours[i].setDataField(colour)
             self.pointattrList.append(self.nodeColours[i].getGraphicspointattributes())
-            self.pointattrList[i].setLabelText(1, f'ECG Node {i}')
-            self.pointattrList[i].setLabelOffset([1.5, 1.5, 0])
+            #self.pointattrList[i].setLabelText(1, f'ECG Node {i}')
+            #self.pointattrList[i].setLabelOffset([1.5, 1.5, 0])
             self.pointattrList[i].setGlyphShapeType(Glyph.SHAPE_TYPE_SPHERE)
             self.pointattrList[i].setBaseSize([.05, .05, 2])
 

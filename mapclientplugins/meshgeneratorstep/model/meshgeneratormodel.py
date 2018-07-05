@@ -415,6 +415,7 @@ class MeshGeneratorModel(MeshAlignmentModel):
         nodeNumbers.setCoordinateField(coordinates)
         pointattr = nodeNumbers.getGraphicspointattributes()
         pointattr.setLabelField(cmiss_number)
+        pointattr.setGlyphShapeType(Glyph.SHAPE_TYPE_NONE)
         nodeNumbers.setVisibilityFlag(self.isDisplayNodeNumbers())
         nodeNumbers.setMaterial(self._materialmodule.findMaterialByName('white'))
         nodeNumbers.setName('displayNodeNumbers')
