@@ -39,6 +39,21 @@ class EcgGraphics(object):
         constant = fm.createFieldConstant(value)
         displaySurface.setDataField(constant)
 
+    def findMeshLocation(self):
+        fm = self._region.getFieldmodule()
+        cache = fm.createFieldcache()
+        nodeset = fm.findNodesetByName('nodes')
+        node = nodeset.findNodeByIdentifier(9)
+        cache.setNode(node)
+        search_value = fm.createFieldFiniteElement(3)
+        search_value.assignReal(cache, [1, 1, 1.1])
+
+        mesh = fm.findMeshByName('mesh2d')
+        mesh_location = fm.createFieldStoredMeshLocation(mesh)
+        found_mesh_location = fm.createFieldFindMeshLocation(search_value, mesh_location, mesh)
+
+
+
 
     def initialiseSpectrum(self, data):
         maximum = -1000000
@@ -96,14 +111,22 @@ class EcgGraphics(object):
         eegNode = nodes.createNode(self.numberInModel + i + 1, nodetemplate)
         cache.setNode(eegNode)
         coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, eeg_coord[i])
-        cache.setTime(0)
-        cache.setNode(eegNode)
-        colour.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, .1)
-        cache.clearLocation()
-        cache.setTime(1)
-        cache.setNode(eegNode)
-        colour.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, .9)
         eeg_group.addNode(eegNode)
+
+        # Find the z location of mesh for our new node
+        mesh = fm.findMeshByName('mesh3d')
+        mesh_location = fm.createFieldStoredMeshLocation(mesh)
+        found_mesh_location = fm.createFieldFindMeshLocation(coordinates, coordinates, mesh)
+        found_mesh_location.setSearchMode(found_mesh_location.SEARCH_MODE_NEAREST)
+
+        [el, coords] = found_mesh_location.evaluateMeshLocation(cache, 3)
+        print(f'node number {self.numberInModel + i + 1},  ({self.numberInModel + i + 1 + 25})')
+        print(coords)
+
+        ef = el.getElementfieldtemplate(coordinates, 1)
+        eegNode = nodes.createNode(self.numberInModel + i + 1 + 1000, nodetemplate)
+        cache.setNode(eegNode)
+        coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, coords)
 
     def createGraphics(self):
         # Node numbers are generated here
@@ -117,13 +140,13 @@ class EcgGraphics(object):
         #eeg_coord = eegModel.get_all_coordinates()
 
         grid_size = 1
-        elements_on_side = 20
+        elements_on_side = 5
 
         eeg_coord = []
 
         for i in range(elements_on_side):
             for j in range(elements_on_side):
-                eeg_coord.append([i*grid_size/elements_on_side, j*grid_size/elements_on_side, 0])
+                eeg_coord.append([i*grid_size/elements_on_side + - j*grid_size/elements_on_side, i*grid_size/elements_on_side,- j*grid_size/elements_on_side])
 
         self.eegSize = len(eeg_coord)
 
@@ -166,6 +189,6 @@ class EcgGraphics(object):
             # self.pointattrList[i].setLabelText(1, f'ECG Node {i}')
             # self.pointattrList[i].setLabelOffset([1.5, 1.5, 0])
             self.pointattrList[i].setGlyphShapeType(Glyph.SHAPE_TYPE_SPHERE)
-            self.pointattrList[i].setBaseSize([.05, .05, 2])
+            self.pointattrList[i].setBaseSize([.05, .05, .05])
 
         scene.endChange()

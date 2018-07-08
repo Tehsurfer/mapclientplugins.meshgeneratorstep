@@ -370,10 +370,8 @@ class MeshGeneratorModel(MeshAlignmentModel):
         if self._sceneChangeCallback is not None:
             self._sceneChangeCallback()
 
-    # mesh = fm.findMeshByName('mesh2d')
-    # const2 = fm.createFieldConstant([.5, .5, .4])
-    # coordinates = fm.findFieldByName('coordinates')
-    # findMeshLoc = fm.createFieldFindMeshLocation(coordinates, coordinates, mesh)
+        name = mesh.getName()
+        print(name)
 
     def initialiseTimeSequences(self, data):
         fm = self._region.getFieldmodule()
