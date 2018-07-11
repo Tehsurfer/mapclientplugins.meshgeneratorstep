@@ -70,6 +70,7 @@ class EcgGraphics(object):
         spectrum_component.setRangeMinimum(minimum)
 
 
+
     def updateEEGnodeColours(self, values):
         fm = self._region.getFieldmodule()
         fm.beginChange()
@@ -128,7 +129,30 @@ class EcgGraphics(object):
         cache.setNode(eegNode)
         coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, coords)
 
-    def createGraphics(self):
+
+
+    def generateGridPoints(self, point1, point2, number_on_side):
+
+        elements_on_side = 4
+
+        grid_size_x = abs(point1[0] - point2[0])
+        grid_size_y = abs(point1[1] - point2[1])
+
+        #scale sides so they have same number of points
+        step_size_x = grid_size_x/number_on_side
+        step_size_y = grid_size_y/number_on_side
+
+        eeg_coord = []
+
+        for i in range(elements_on_side):
+            for j in range(elements_on_side):
+                eeg_coord.append([point1[0] + i * step_size_x, point1[1] + j * step_size_y, -.2])
+
+        # Add the colour bar node
+        eeg_coord.append([1, 1.2, 1.2])
+        return eeg_coord
+
+    def createGraphics(self, point1=[0, 0], point2=[1, 1], number_on_side=3):
         # Node numbers are generated here
         fm = self._region.getFieldmodule()
         # make graphics
@@ -137,17 +161,7 @@ class EcgGraphics(object):
         coordinates = fm.findFieldByName('coordinates')
 
         # Add EEG nodes
-        #eeg_coord = eegModel.get_all_coordinates()
-
-        grid_size = 1
-        elements_on_side = 5
-
-        eeg_coord = []
-
-        for i in range(elements_on_side):
-            for j in range(elements_on_side):
-                eeg_coord.append([i*grid_size/elements_on_side + - j*grid_size/elements_on_side, i*grid_size/elements_on_side,- j*grid_size/elements_on_side])
-
+        eeg_coord = self.generateGridPoints(point1,point2,number_on_side)
         self.eegSize = len(eeg_coord)
 
         # Add Spectrum
@@ -191,4 +205,13 @@ class EcgGraphics(object):
             self.pointattrList[i].setGlyphShapeType(Glyph.SHAPE_TYPE_SPHERE)
             self.pointattrList[i].setBaseSize([.05, .05, .05])
 
+        # Add a colour bar for the spectrum
+        gm = self._scene.getGlyphmodule()
+        colour_bar = gm.createGlyphColourBar(spec)
+        colour_bar.setLabelDivisions(6)
+        self.pointattrList[-1].setGlyph(colour_bar)
+        self.pointattrList[-1].setBaseSize([.1, .8, .1])
+
         scene.endChange()
+
+        #del self.pointattrList[-1]

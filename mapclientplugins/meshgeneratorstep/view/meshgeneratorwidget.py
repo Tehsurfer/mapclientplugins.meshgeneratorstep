@@ -58,6 +58,8 @@ class MeshGeneratorWidget(QtGui.QWidget):
         self.pw = None
         self.time = 0
 
+        self._ui.sceneviewer_widget.grid = []
+
     def _graphicsInitialized(self):
         """
         Callback for when SceneviewerWidget is initialised
@@ -271,14 +273,22 @@ class MeshGeneratorWidget(QtGui.QWidget):
 
     def _EEGAnimationClicked(self):
         if self.data and self._ecg_graphics.initialised is False:
-                self.scaleCacheData()
-                self._ecg_graphics.setRegion(self._generator_model.getRegion())
+            self.scaleCacheData()
+            self._ecg_graphics.setRegion(self._generator_model.getRegion())
+
+            if len(self._ui.sceneviewer_widget.grid) >= 2:
+                self._ecg_graphics.createGraphics(point1=self._ui.sceneviewer_widget.grid[0],
+                                                  point2=self._ui.sceneviewer_widget.grid[1],)
+            else:
                 self._ecg_graphics.createGraphics()
-                self._ecg_graphics.initialiseSpectrum(self.data)
-                self._ecg_graphics.initialised = True
+            self._ecg_graphics.initialiseSpectrum(self.data)
+            self._ecg_graphics.initialised = True
+
         else:
             self.pw = pg.plot(title='Please load your data from blackfynn so we can show you your ECG data'
                               + '(Use the blackfynn API key)')
+
+
 
 
     def currentFrame(self, value):
@@ -333,17 +343,12 @@ class MeshGeneratorWidget(QtGui.QWidget):
     def _submitClicked(self):
     # submitClicked initialises all the blackfynn functionality and updates login fields.
         if self._ui.api_key.displayText() != 'API Key' and self._ui.api_secret.text() != '***************************':
+            self.pw = pg.plot(title='Blackfynn electrode graph',
+                              labels={'left': f'EEG value of node', 'bottom': 'time in seconds'})
             self._ui.Login_groupBox.setTitle(QtGui.QApplication.translate("MeshGeneratorWidget", "Login details saved, click on a node to open graphs", None,
                                                                        QtGui.QApplication.UnicodeUTF8))
-            # self._ui.sceneviewer_widget.blackfynn.api_token = self._ui.api_key.text()
-            # self._ui.sceneviewer_widget.blackfynn.api_secret = self._ui.api_secret.text()
             self.initialiseBlackfynnData()
-
             self._ui.api_secret.setText('***************************')
-
-            # self._ui.sceneviewer_widget.blackfynn.set_params(channels='LG4', window_from_start=4)
-            # self._ui.sceneviewer_widget.blackfynn.set_api_key_login()
-            # self._ui.sceneviewer_widget.data = self._ui.sceneviewer_widget.blackfynn.get()
             self.blackfynn.loaded = True
 
             # need to add the blackfynn data initialisation here
@@ -353,10 +358,10 @@ class MeshGeneratorWidget(QtGui.QWidget):
         self.blackfynn.set_api_key_login()
         self.blackfynn.set_params(channels='LG4', window_from_start=4) # need to add dataset selection
         self.data = self.blackfynn.get()
-        self.pw = pg.plot()
         self.updatePlot(4)
 
     def updatePlot(self, key):
+
         try:
             self.data['cache'][f'LG{key}']
         except KeyError:
@@ -364,11 +369,13 @@ class MeshGeneratorWidget(QtGui.QWidget):
             self.pw.plot(title='Error in data collection')
             return
         self.pw.clear()
+
         self.pw.plot(self.data['x'],
                      self.data['cache'][f'LG{key}'],
                      pen='b',
-                     title=f'EEG values from {key} (LG{key})',
-                     labels={'left': f'EEG value of node LG{key}', 'bottom': 'time in seconds'})
+                     title=f'EEG values from {key} LG{key}',
+                     )
+        self.pw.setTitle(f'EEG values from {key} (LG{key})')
         self.line = self.pw.addLine(x=self.time,
                                     pen='r')  # show current time
 
@@ -386,8 +393,9 @@ class MeshGeneratorWidget(QtGui.QWidget):
         print(f'key {key} clicked!')
         if self.data:
             self.pw.clear()
-            self.pw.plot(self.data['x'], self.data['cache'][f'LG{key}'], pen='b', title=f'EEG values from {key} (LG{key})',
-                    labels={'left': f'EEG value of node LG{key}', 'bottom': 'time in seconds'})
+            self.pw.plot(self.data['x'], self.data['cache'][f'LG{key}'], pen='b',
+                         title=f'EEG values from {key} (LG{key})',
+                         labels={'left': f'EEG value of node LG{key}', 'bottom': 'time in seconds'})
             self.line = self.pw.addLine(x=self.time, pen='r')  # show current time
 
 
@@ -582,6 +590,7 @@ def _calculatePointOnPlane(self, x, y):
     near_plane_point = self.unproject(x, -y, 1.0)
     plane_point, plane_normal = self._model.getPlaneDescription()
     point_on_plane = calculateLinePlaneIntersection(near_plane_point, far_plane_point, plane_point, plane_normal)
+    self.grid.append(point_on_plane)
     print(point_on_plane)
     return point_on_plane
 
