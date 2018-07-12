@@ -109,10 +109,11 @@ class EcgGraphics(object):
 
         # Assign values for the new EEG subset
         eeg_group.removeAllNodes()
-        eegNode = nodes.createNode(self.numberInModel + i + 1, nodetemplate)
+        eegNode = nodes.createNode(self.numberInModel*2 + i + 1, nodetemplate)
         cache.setNode(eegNode)
         coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, eeg_coord[i])
-        eeg_group.addNode(eegNode)
+
+        cache.setNode(eegNode)
 
         # Find the z location of mesh for our new node
         mesh = fm.findMeshByName('mesh3d')
@@ -122,12 +123,18 @@ class EcgGraphics(object):
 
         [el, coords] = found_mesh_location.evaluateMeshLocation(cache, 3)
         print(f'node number {self.numberInModel + i + 1},  ({self.numberInModel + i + 1 + 25})')
-        print(coords)
-
+        print(f'element coordinates: {coords}')
         ef = el.getElementfieldtemplate(coordinates, 1)
-        eegNode = nodes.createNode(self.numberInModel + i + 1 + 1000, nodetemplate)
+        cache.setMeshLocation(el, coords)
+        [result, global_coords] = coordinates.evaluateReal(cache, 3)
+        print(f'global coordinates: {global_coords}')
+
+
+        # create new node for projection
+        eegNode = nodes.createNode(self.numberInModel + i + 1, nodetemplate)
         cache.setNode(eegNode)
-        coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, coords)
+        coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, global_coords)
+        eeg_group.addNode(eegNode)
 
 
 
@@ -146,7 +153,7 @@ class EcgGraphics(object):
 
         for i in range(elements_on_side):
             for j in range(elements_on_side):
-                eeg_coord.append([point1[0] + i * step_size_x, point1[1] + j * step_size_y, -.2])
+                eeg_coord.append([point1[0] + i * step_size_x, point1[1] + j * step_size_y, -1.15])
 
         # Add the colour bar node
         eeg_coord.append([1, 1.2, 1.2])

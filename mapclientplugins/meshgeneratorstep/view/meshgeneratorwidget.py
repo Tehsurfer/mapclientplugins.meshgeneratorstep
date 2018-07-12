@@ -279,6 +279,7 @@ class MeshGeneratorWidget(QtGui.QWidget):
             if len(self._ui.sceneviewer_widget.grid) >= 2:
                 self._ecg_graphics.createGraphics(point1=self._ui.sceneviewer_widget.grid[0],
                                                   point2=self._ui.sceneviewer_widget.grid[1],)
+                self._ui.sceneviewer_widget.grid = []
             else:
                 self._ecg_graphics.createGraphics()
             self._ecg_graphics.initialiseSpectrum(self.data)
@@ -580,6 +581,8 @@ def mousePressEvent(self, event):
         self._model = self.plane_model_temp
         self._calculatePointOnPlane = None
         self.mousePressEvent = self.original_mousePressEvent
+
+        self.grid.append(point_on_plane)
     return [event.x(), event.y()]
 
 
@@ -590,7 +593,7 @@ def _calculatePointOnPlane(self, x, y):
     near_plane_point = self.unproject(x, -y, 1.0)
     plane_point, plane_normal = self._model.getPlaneDescription()
     point_on_plane = calculateLinePlaneIntersection(near_plane_point, far_plane_point, plane_point, plane_normal)
-    self.grid.append(point_on_plane)
+
     print(point_on_plane)
     return point_on_plane
 
