@@ -20,7 +20,7 @@ STRING_FLOAT_FORMAT = '{:.8g}'
 
 class EcgGraphics(object):
     """
-    Framework for generating meshes of a number of types, with mesh type specific options
+    ECG Graphics is used as a home for creating and modifying displays to visualise ECG data on the model
     """
 
     def __init__(self):
@@ -38,22 +38,6 @@ class EcgGraphics(object):
         displaySurface = scene.findGraphicsByName('displaySurfaces')
         constant = fm.createFieldConstant(value)
         displaySurface.setDataField(constant)
-
-    def findMeshLocation(self):
-        fm = self._region.getFieldmodule()
-        cache = fm.createFieldcache()
-        nodeset = fm.findNodesetByName('nodes')
-        node = nodeset.findNodeByIdentifier(9)
-        cache.setNode(node)
-        search_value = fm.createFieldFiniteElement(3)
-        search_value.assignReal(cache, [1, 1, 1.1])
-
-        mesh = fm.findMeshByName('mesh2d')
-        mesh_location = fm.createFieldStoredMeshLocation(mesh)
-        found_mesh_location = fm.createFieldFindMeshLocation(search_value, mesh_location, mesh)
-
-
-
 
     def initialiseSpectrum(self, data):
         maximum = -1000000
@@ -89,10 +73,32 @@ class EcgGraphics(object):
         cache = fm.createFieldcache()
         colour = fm.findFieldByName('colour')
 
+    def generateGridPoints(self, point1, point2, number_on_side):
+        # generateGridPoints generates a rectangular grid on along a plane ( x, y or z )
+        # using two points defined on the plan and the number of points per side of the grid
+
+        elements_on_side = 4
+
+        grid_size_x = abs(point1[0] - point2[0])
+        grid_size_y = abs(point1[1] - point2[1])
+
+        #scale sides so they have same number of points
+        step_size_x = grid_size_x/number_on_side
+        step_size_y = grid_size_y/number_on_side
+
+        eeg_coord = []
+        for i in range(elements_on_side):
+            for j in range(elements_on_side):
+                eeg_coord.append([point1[0] + i * step_size_x, .65, point1[1] + j * step_size_y])
+
+        # Add the colour bar node
+        eeg_coord.append([1, 1.2, 1.2])
+        return eeg_coord
 
     def createEEGPoints(self, region, eeg_group, eeg_coord, i, cache):
         # createEEGPoints creates subgroups of points that use the 'colour' field to change colour
 
+        # Re-aquire openzinc variables
         fm = region.getFieldmodule()
         coordinates = fm.findFieldByName('coordinates')
         coordinates = coordinates.castFiniteElement()
@@ -112,7 +118,6 @@ class EcgGraphics(object):
         eegNode = nodes.createNode(self.numberInModel*2 + i + 1, nodetemplate)
         cache.setNode(eegNode)
         coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, eeg_coord[i])
-
         cache.setNode(eegNode)
 
         # Find the z location of mesh for our new node
@@ -121,54 +126,51 @@ class EcgGraphics(object):
         found_mesh_location = fm.createFieldFindMeshLocation(coordinates, coordinates, mesh)
         found_mesh_location.setSearchMode(found_mesh_location.SEARCH_MODE_NEAREST)
 
-        [el, coords] = found_mesh_location.evaluateMeshLocation(cache, 3)
-        print(f'node number {self.numberInModel + i + 1},  ({self.numberInModel + i + 1 + 25})')
-        print(f'element coordinates: {coords}')
-        ef = el.getElementfieldtemplate(coordinates, 1)
-        cache.setMeshLocation(el, coords)
-        [result, global_coords] = coordinates.evaluateReal(cache, 3)
-        print(f'global coordinates: {global_coords}')
+        # Use the FindMeshLocation function as a solver to see where the model intersects our gird point in a
+        # particular axis ( currently using the y axis as this is the surface of the heart you see in open surgery )
+        it = 1
+        tol = .02
+        global_coords = [3, 3, 3]
+        while abs(abs(global_coords[0]) - abs(eeg_coord[i][0])) > tol \
+                and abs(abs(global_coords[2]) - abs(eeg_coord[i][2])) > tol:
+            # ^^ test if x and y changes are within tolerence
 
+            # Find nearest mesh location
+            [el, coords] = found_mesh_location.evaluateMeshLocation(cache, 3)
+            cache.setMeshLocation(el, coords)
+            [result, global_coords] = coordinates.evaluateReal(cache, 3)
 
-        # create new node for projection
+            # Update our search location
+            cache.setNode(eegNode)
+            coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1,
+                                          [eeg_coord[i][0], global_coords[1], eeg_coord[i][2]])
+            cache.setNode(eegNode)
+
+            # Break in case we can not converge
+            it += 1
+            if it > 5:
+                print(f'Could not converge on node {i}')
+                break
+
+        # Create the final node with our search coordinates
         eegNode = nodes.createNode(self.numberInModel + i + 1, nodetemplate)
         cache.setNode(eegNode)
-        coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, global_coords)
+        coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1,
+                                      [eeg_coord[i][0], global_coords[1], eeg_coord[i][2]])
         eeg_group.addNode(eegNode)
 
 
+    def createGraphics(self, point1=[0, 0], point2=[1, 1], number_on_side=5):
+        # createGraphics creates our EEG points and assigns them a spectrum for future animation.
 
-    def generateGridPoints(self, point1, point2, number_on_side):
-
-        elements_on_side = 4
-
-        grid_size_x = abs(point1[0] - point2[0])
-        grid_size_y = abs(point1[1] - point2[1])
-
-        #scale sides so they have same number of points
-        step_size_x = grid_size_x/number_on_side
-        step_size_y = grid_size_y/number_on_side
-
-        eeg_coord = []
-
-        for i in range(elements_on_side):
-            for j in range(elements_on_side):
-                eeg_coord.append([point1[0] + i * step_size_x, point1[1] + j * step_size_y, -1.15])
-
-        # Add the colour bar node
-        eeg_coord.append([1, 1.2, 1.2])
-        return eeg_coord
-
-    def createGraphics(self, point1=[0, 0], point2=[1, 1], number_on_side=3):
-        # Node numbers are generated here
         fm = self._region.getFieldmodule()
-        # make graphics
         scene = self._region.getScene()
         scene.beginChange()
         coordinates = fm.findFieldByName('coordinates')
+        cache = fm.createFieldcache()
 
         # Add EEG nodes
-        eeg_coord = self.generateGridPoints(point1,point2,number_on_side)
+        eeg_coord = self.generateGridPoints(point1, point2, number_on_side)
         self.eegSize = len(eeg_coord)
 
         # Add Spectrum
@@ -176,7 +178,7 @@ class EcgGraphics(object):
         spec = spcmod.getDefaultSpectrum()
         spec.setName('eegColourSpectrum')
 
-        cache = fm.createFieldcache()
+
 
         # Initialise all subgroup parameters
         self.ndsg = []  # (node set group)
@@ -187,12 +189,12 @@ class EcgGraphics(object):
         nodes = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
         self.numberInModel = nodes.getSize()
 
-        #create all EEG subgroups
+        # Create all EEG subgroups
         colour = fm.createFieldFiniteElement(1)
         colour.setName('colour')
         colour.setManaged(True)
         for i in range(len(eeg_coord)):
-            #create new graphics for our subgroup
+            # Create new graphics for our subgroup
             self.nodeColours.append(scene.createGraphicsPoints())
             self.nodeColours[i].setFieldDomainType(Field.DOMAIN_TYPE_NODES)
             self.nodeColours[i].setCoordinateField(coordinates)
@@ -203,7 +205,7 @@ class EcgGraphics(object):
             self.createEEGPoints(self._region, self.ndsg[i], eeg_coord, i, cache)
             self.nodeColours[i].setSubgroupField(fng)
 
-            #set attributes for our new node
+            # Set attributes for our new node
             self.nodeColours[i].setSpectrum(spec)
             self.nodeColours[i].setDataField(colour)
             self.pointattrList.append(self.nodeColours[i].getGraphicspointattributes())

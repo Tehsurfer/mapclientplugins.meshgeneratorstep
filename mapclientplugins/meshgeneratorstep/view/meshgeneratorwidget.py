@@ -592,9 +592,10 @@ def _calculatePointOnPlane(self, x, y):
     far_plane_point = self.unproject(x, -y, -1.0)
     near_plane_point = self.unproject(x, -y, 1.0)
     plane_point, plane_normal = self._model.getPlaneDescription()
+    plane_normal = [0, 1, 0]
     point_on_plane = calculateLinePlaneIntersection(near_plane_point, far_plane_point, plane_point, plane_normal)
 
     print(point_on_plane)
-    return point_on_plane
+    return [point_on_plane[0], point_on_plane[2]]
 
 
