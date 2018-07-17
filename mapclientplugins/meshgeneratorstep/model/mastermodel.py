@@ -65,8 +65,8 @@ class MasterModel(object):
         trans_blue.setAttributeReal3(Material.ATTRIBUTE_DIFFUSE, [ 0.0, 0.7, 1.0 ])
         trans_blue.setAttributeReal3(Material.ATTRIBUTE_EMISSION, [ 0.0, 0.0, 0.0 ])
         trans_blue.setAttributeReal3(Material.ATTRIBUTE_SPECULAR, [ 0.1, 0.1, 0.1 ])
-        trans_blue.setAttributeReal(Material.ATTRIBUTE_ALPHA , 0.9)
-        trans_blue.setAttributeReal(Material.ATTRIBUTE_SHININESS , 0.9)
+        trans_blue.setAttributeReal(Material.ATTRIBUTE_ALPHA , 0.3)
+        trans_blue.setAttributeReal(Material.ATTRIBUTE_SHININESS , 0.2)
         glyphmodule = self._context.getGlyphmodule()
         glyphmodule.defineStandardGlyphs()
 
