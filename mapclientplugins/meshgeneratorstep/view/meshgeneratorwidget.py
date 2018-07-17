@@ -50,6 +50,7 @@ class MeshGeneratorWidget(QtGui.QWidget):
             self._ui.meshType_comboBox.addItem(meshTypeName)
         self._makeConnections()
 
+        self._ui.sceneviewer_widget.foundNode = False
         self._ecg_graphics = model.getEcgGraphics()
         self.blackfynn = BlackfynnGet()
         self.data = {}
@@ -265,8 +266,8 @@ class MeshGeneratorWidget(QtGui.QWidget):
     def scaleData(self, key):
         numFrames = self._plane_model.getFrameCount()
         y = np.array(self.data['cache'][key])
-        x = np.linspace(0, 4, len(y))
-        xterp = np.linspace(0, 4, numFrames)
+        x = np.linspace(0, 16, len(y))
+        xterp = np.linspace(0, 16, numFrames)
         yterp = np.interp(xterp, x, y)
         return yterp
 
@@ -276,9 +277,11 @@ class MeshGeneratorWidget(QtGui.QWidget):
             self.scaleCacheData()
             self._ecg_graphics.setRegion(self._generator_model.getRegion())
 
-            if len(self._ui.sceneviewer_widget.grid) >= 2:
+            if len(self._ui.sceneviewer_widget.grid) >= 4:
                 self._ecg_graphics.createGraphics(point1=self._ui.sceneviewer_widget.grid[0],
-                                                  point2=self._ui.sceneviewer_widget.grid[1],)
+                                                  point2=self._ui.sceneviewer_widget.grid[1],
+                                                  point3=self._ui.sceneviewer_widget.grid[2],
+                                                  point4=self._ui.sceneviewer_widget.grid[3])
                 self._ui.sceneviewer_widget.grid = []
             else:
                 self._ecg_graphics.createGraphics()
@@ -294,7 +297,7 @@ class MeshGeneratorWidget(QtGui.QWidget):
 
     def currentFrame(self, value):
         frame_count = self._plane_model.getFrameCount()
-        frame_vals = np.linspace(0, 4, frame_count)
+        frame_vals = np.linspace(0, 16, frame_count)
         currentFrame = (np.abs(frame_vals - value)).argmin()
         return currentFrame
 
@@ -357,7 +360,7 @@ class MeshGeneratorWidget(QtGui.QWidget):
         # self.blackfynn.api_key = self._ui.api_key.text()  <- commented so that we do not have to enter key each time
         # self.blackfynn.api_secret = self._ui.api_secret.text()
         self.blackfynn.set_api_key_login()
-        self.blackfynn.set_params(channels='LG4', window_from_start=4) # need to add dataset selection
+        self.blackfynn.set_params(channels='LG4', window_from_start=16) # need to add dataset selection
         self.data = self.blackfynn.get()
         self.updatePlot(4)
 
@@ -549,9 +552,8 @@ class MeshGeneratorWidget(QtGui.QWidget):
 
             self._ui.sceneviewer_widget._calculatePointOnPlane = types.MethodType(_calculatePointOnPlane, self._ui.sceneviewer_widget)
             self._ui.sceneviewer_widget.mousePressEvent = types.MethodType(mousePressEvent, self._ui.sceneviewer_widget)
-            self._ui.sceneviewer_widget.foundNode = False
+            #self._ui.sceneviewer_widget.foundNode = False
             self._model.printLog()
-
 
     def keyReleaseEvent(self, event):
         if self._marker_mode_active:
@@ -559,8 +561,12 @@ class MeshGeneratorWidget(QtGui.QWidget):
             self._ui.sceneviewer_widget._model = self._plane_model
             self._ui.sceneviewer_widget._calculatePointOnPlane = None
             self._ui.sceneviewer_widget.mousePressEvent = self._original_mousePressEvent
-            if self._ui.sceneviewer_widget.foundNode == True:
-                self.updatePlot(self._ui.sceneviewer_widget.nodeKey)
+            if self._ui.sceneviewer_widget.foundNode and len(self._ui.sceneviewer_widget.grid) is 2:
+                #self.updatePlot(self._ui.sceneviewer_widget.nodeKey)
+                if self._ui.sceneviewer_widget.nodeKey in self._ecg_graphics.node_corner_list:
+                    self._ecg_graphics.updateGrid(self._ui.sceneviewer_widget.nodeKey,  self._ui.sceneviewer_widget.grid[1])
+                self._ui.sceneviewer_widget.foundNode = False
+
 
 
 def mousePressEvent(self, event):
@@ -572,17 +578,25 @@ def mousePressEvent(self, event):
         print('Location of click (x,y): (' + str(event.x()) + ', ' + str(event.y()) +')')
         node = self.getNearestNode(event.x(), event.y())
         if node.isValid():
+            print(f'node {node.getIdentifier()} was clicked')
             self.foundNode = True
             self.nodeKey = node.getIdentifier()
             self.node = node
-
+            self.grid = []
         # return sceneviewers 'mouspressevent' function to its version for navigation
 
         self._model = self.plane_model_temp
         self._calculatePointOnPlane = None
         self.mousePressEvent = self.original_mousePressEvent
 
+        if len(self.grid) > 2 and self.foundNode:
+            self.grid = []
+            self.foundNode = False
         self.grid.append(point_on_plane)
+
+        if len(self.grid) > 4:
+            self.grid = []
+
     return [event.x(), event.y()]
 
 
