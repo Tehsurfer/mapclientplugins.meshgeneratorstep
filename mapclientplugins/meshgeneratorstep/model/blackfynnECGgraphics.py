@@ -7,6 +7,7 @@ import string
 
 from opencmiss.zinc.field import Field
 from opencmiss.zinc.glyph import Glyph
+import opencmiss.zinc.scenecoordinatesystem as Scenecoordinatesystem
 from opencmiss.zinc.graphics import Graphics
 from opencmiss.zinc.node import Node
 from scaffoldmaker.scaffoldmaker import Scaffoldmaker
@@ -31,7 +32,16 @@ class EcgGraphics(object):
                                    [0, 0],
                                    [0, 0],
                                    [0, 0]]
+        self.settingsLoaded = False
         pass
+
+    def getSettings(self):
+        if self.node_corner_list[0] is not 0:
+            return self.node_corner_points
+
+    def setSettings(self, settings):
+        self.node_corner_points = settings
+        self.settingsLoaded = True
 
     def setRegion(self, region):
         self._region = region
@@ -94,7 +104,7 @@ class EcgGraphics(object):
                 eeg_coord.append([point1[0] + i * step_size_x, .65, point1[1] + j * step_size_y])
 
         # Add the colour bar node
-        eeg_coord.append([1, 1.2, 1.2])
+        #eeg_coord.append([-.8, -.8, -.8])
         return eeg_coord
 
     def generateGridPoints4(self, p1, p2, p3, p4, number_on_side):
@@ -262,7 +272,7 @@ class EcgGraphics(object):
         # Create the final node with our search coordinates
         eeg_group.addNode(eegNode)
 
-    def createGraphics(self, point1=[0, 1], point2=[0, 0], point3=[1, 1], point4=[.8, 0], number_on_side=8):
+    def createGraphics(self, new_points=False, point1=[0, 1], point2=[0, 0], point3=[1, 1], point4=[.8, 0], number_on_side=8):
         # createGraphics creates our EEG points and assigns them a spectrum for future animation.
 
         fm = self._region.getFieldmodule()
@@ -272,13 +282,18 @@ class EcgGraphics(object):
         cache = fm.createFieldcache()
 
         #save points
-        self.node_corner_points[0] = point1
-        self.node_corner_points[1] = point2
-        self.node_corner_points[2] = point3
-        self.node_corner_points[3] = point4
+        if new_points:
+            self.node_corner_points[0] = point1
+            self.node_corner_points[1] = point2
+            self.node_corner_points[2] = point3
+            self.node_corner_points[3] = point4
 
         # Add EEG nodes
-        eeg_coord = self.generateGridPoints4(point1, point2, point3, point4, number_on_side)
+        eeg_coord = self.generateGridPoints4( self.node_corner_points[0],
+                                              self.node_corner_points[1],
+                                              self.node_corner_points[2],
+                                              self.node_corner_points[3],
+                                              number_on_side)
         self.eegSize = len(eeg_coord)
 
         # Add Spectrum
@@ -324,11 +339,31 @@ class EcgGraphics(object):
             self.pointattrList[i].setBaseSize([.05, .05, .05])
 
         # Add a colour bar for the spectrum
+        screen_coords = fm.createFieldFiniteElement(2)
+        spectrum_template = nodes.createNodetemplate()
+        spectrum_template.defineField(screen_coords)
+        spectrum_node = nodes.createNode(1000, spectrum_template)
+        cache.setNode(spectrum_node)
+        screen_coords.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, [-.95, -.78])
+        fng = fm.createFieldNodeGroup(nodes)
+        spectrum_group = fng.getNodesetGroup()
+        spectrum_group.addNode(spectrum_node)
+
+
+        spectrum_graphics = scene.createGraphicsPoints()
+        spectrum_graphics.setScenecoordinatesystem(Scenecoordinatesystem.SCENECOORDINATESYSTEM_NORMALISED_WINDOW_FIT_BOTTOM)
+        spectrum_graphics.setFieldDomainType(Field.DOMAIN_TYPE_NODES)
+        spectrum_graphics.setCoordinateField(screen_coords)
+        spectrum_graphics.setSubgroupField(fng)
+        spectrum_graphics.setSpectrum(spec)
+        spectrum_point_attr = spectrum_graphics.getGraphicspointattributes()
+
         gm = self._scene.getGlyphmodule()
         colour_bar = gm.createGlyphColourBar(spec)
         colour_bar.setLabelDivisions(6)
-        self.pointattrList[-1].setGlyph(colour_bar)
-        self.pointattrList[-1].setBaseSize([.1, .8, .1])
+
+        spectrum_point_attr.setGlyph(colour_bar)
+        spectrum_point_attr.setBaseSize([.3, .4,])
 
         scene.endChange()
 

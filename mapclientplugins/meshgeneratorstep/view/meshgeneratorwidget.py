@@ -278,13 +278,17 @@ class MeshGeneratorWidget(QtGui.QWidget):
             self._ecg_graphics.setRegion(self._generator_model.getRegion())
 
             if len(self._ui.sceneviewer_widget.grid) >= 4:
-                self._ecg_graphics.createGraphics(point1=self._ui.sceneviewer_widget.grid[0],
+                self._ecg_graphics.createGraphics(new_points=True,
+                                                  point1=self._ui.sceneviewer_widget.grid[0],
                                                   point2=self._ui.sceneviewer_widget.grid[1],
                                                   point3=self._ui.sceneviewer_widget.grid[2],
                                                   point4=self._ui.sceneviewer_widget.grid[3])
                 self._ui.sceneviewer_widget.grid = []
             else:
-                self._ecg_graphics.createGraphics()
+                if self._ecg_graphics.settingsLoaded:
+                    self._ecg_graphics.createGraphics()
+                else:
+                    self._ecg_graphics.createGraphics(newpoints=True)
             self._ecg_graphics.initialiseSpectrum(self.data)
             self._ecg_graphics.initialised = True
 

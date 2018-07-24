@@ -31,6 +31,7 @@ class MasterModel(object):
         self._fiducial_marker_model = FiducialMarkerModel(self._region)
         self._fiducial_marker_model.registerGetPlaneInfoMethod(self._plane_model.getPlaneInfo)
         self._ecgGraphics = EcgGraphics()
+        self._ecgGraphics.setRegion(self._region)
         self._settings = {
             'frames-per-second': 25,
             'time-loop': False
@@ -164,6 +165,7 @@ class MasterModel(object):
         settings['generator_settings'] = self._generator_model.getSettings()
         settings['image_plane_settings'] = self._plane_model.getSettings()
         settings['fiducial-markers'] = self._fiducial_marker_model.getSettings()
+        settings['ECG_grid'] = self._ecgGraphics.getSettings()
         return settings
 
     def loadSettings(self):
@@ -184,6 +186,12 @@ class MasterModel(object):
         self._generator_model.setSettings(settings['generator_settings'])
         self._plane_model.setSettings(settings['image_plane_settings'])
         self._fiducial_marker_model.setSettings(settings['fiducial-markers'])
+        try:
+            grid_points = settings['ECG_grid']
+            self._ecgGraphics.setSettings(grid_points)
+        except KeyError:
+            pass
+
 
     def _saveSettings(self):
         settings = self._getSettings()
