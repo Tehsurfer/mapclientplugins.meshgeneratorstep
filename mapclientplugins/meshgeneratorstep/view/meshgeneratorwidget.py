@@ -274,10 +274,12 @@ class MeshGeneratorWidget(QtGui.QWidget):
 
     def _EEGAnimationClicked(self):
         if self.data and self._ecg_graphics.initialised is False:
+
             self.scaleCacheData()
             self._ecg_graphics.setRegion(self._generator_model.getRegion())
 
             if len(self._ui.sceneviewer_widget.grid) >= 4:
+                self._ecg_graphics.plane_normal = self._ui.sceneviewer_widget.plane_normal
                 self._ecg_graphics.createGraphics(new_points=True,
                                                   point1=self._ui.sceneviewer_widget.grid[0],
                                                   point2=self._ui.sceneviewer_widget.grid[1],
@@ -610,10 +612,9 @@ def _calculatePointOnPlane(self, x, y):
     far_plane_point = self.unproject(x, -y, -1.0)
     near_plane_point = self.unproject(x, -y, 1.0)
     plane_point, plane_normal = self._model.getPlaneDescription()
-    plane_normal = [0, 1, 0]
     point_on_plane = calculateLinePlaneIntersection(near_plane_point, far_plane_point, plane_point, plane_normal)
-
+    self.plane_normal = plane_normal
     print(point_on_plane)
-    return [point_on_plane[0], point_on_plane[2]]
+    return point_on_plane
 
 
