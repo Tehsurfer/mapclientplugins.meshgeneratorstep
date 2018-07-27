@@ -290,13 +290,14 @@ class MeshGeneratorWidget(QtGui.QWidget):
                 if self._ecg_graphics.settingsLoaded:
                     self._ecg_graphics.createGraphics()
                 else:
-                    self._ecg_graphics.createGraphics(newpoints=True)
+                    self._ecg_graphics.createGraphics()
             self._ecg_graphics.initialiseSpectrum(self.data)
             self._ecg_graphics.initialised = True
 
         else:
-            self.pw = pg.plot(title='Please load your data from blackfynn so we can show you your ECG data'
-                              + '(Use the blackfynn API key)')
+            self._ecg_graphics.clearAll()
+            self._ecg_graphics.__init__()
+            self._ecg_graphics.initialised = False
 
 
 
@@ -615,6 +616,7 @@ def _calculatePointOnPlane(self, x, y):
     point_on_plane = calculateLinePlaneIntersection(near_plane_point, far_plane_point, plane_point, plane_normal)
     self.plane_normal = plane_normal
     print(point_on_plane)
+    print(f'normal: {plane_normal}')
     return point_on_plane
 
 

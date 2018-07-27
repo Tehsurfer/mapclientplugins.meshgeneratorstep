@@ -13,6 +13,7 @@ from opencmiss.zinc.node import Node
 from scaffoldmaker.scaffoldmaker import Scaffoldmaker
 from scaffoldmaker.utils.zinc_utils import *
 import numpy as np
+import time
 
 from mapclientplugins.meshgeneratorstep.model.meshalignmentmodel import MeshAlignmentModel
 
@@ -88,6 +89,13 @@ class EcgGraphics(object):
         cache = fm.createFieldcache()
         colour = fm.findFieldByName('colour')
 
+    def clearAll(self):
+        fm = self._region.getFieldmodule()
+        nodes = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
+        for i in range(self.eegSize):
+            node = nodes.findNodeByIdentifier(self.numberInModel+i+1)
+            nodes.destroyNode(node)
+
     def generateGridPoints(self, point1, point2, number_on_side):
         # generateGridPoints generates a rectangular grid on along a plane ( x, y or z )
         # using two points defined on the plan and the number of points per side of the grid
@@ -125,7 +133,7 @@ class EcgGraphics(object):
         ns = number_on_side
         ns1 = number_on_side - 1
 
-        plane_normal_offset = .2
+        plane_normal_offset = .4
 
         grid_coord = []
         for i in range(number_on_side):
@@ -146,21 +154,20 @@ class EcgGraphics(object):
         plane_norm = np.array(self.plane_normal)
         eeg_coord2 = []
         for i in range(len(grid_coord)):
-            projected_point = np.cross(grid_coord[i], plane_norm)
-            shifted_point = projected_point + plane_norm*plane_normal_offset
+            #projected_point = np.cross(grid_coord[i], plane_norm)
+            shifted_point = grid_coord[i] + plane_norm*plane_normal_offset
             eeg_coord2.append(shifted_point.tolist())
 
         return eeg_coord2
 
 
-    def moveNode(self, nodeKey, tol=.002, max_iterations=20):
+    def moveNode(self, nodeKey, cache, tol=.002, max_iterations=20):
         # createEEGPoints creates subgroups of points that use the 'colour' field to change colour
 
         # Re-aquire openzinc variables
         fm = self._region.getFieldmodule()
         coordinates = fm.findFieldByName('coordinates')
         coordinates = coordinates.castFiniteElement()
-        cache = fm.createFieldcache()
 
         # Create templates
         nodes = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
@@ -169,7 +176,7 @@ class EcgGraphics(object):
         nodetemplate.setValueNumberOfVersions(coordinates, -1, Node.VALUE_LABEL_VALUE, 1)
 
         # Create our first new node for the search
-        plane_normal_offset = .2
+        plane_normal_offset = .1
         old_node = nodes.findNodeByIdentifier(nodeKey)
         cache.setNode(old_node)
         [result, old_coords] = coordinates.evaluateReal(cache, 3)
@@ -187,25 +194,44 @@ class EcgGraphics(object):
 
         it = 1
         old_coords = shifted_point
-        new_coords = [10, 10, 10]
-        while np.linalg.norm(np.cross(old_coords, plane_norm) - np.cross(new_coords, plane_norm)) > tol:
+        test_coords = [10, 10, 10]
+        new_coords = shifted_point
+        start3 = time.clock()
+        while abs(np.linalg.norm(np.dot(test_coords, plane_norm) - np.dot(new_coords, plane_norm))) > tol:
             # ^^ test if x and y changes are within tolerence
-
+            end3 = time.clock()
             # Find nearest mesh location
+            start = time.clock()
             [el, coords] = found_mesh_location.evaluateMeshLocation(cache, 3)
+            end = time.clock()
             cache.setMeshLocation(el, coords)
             [result, mesh_coords] = coordinates.evaluateReal(cache, 3)
 
             # Update our search location
+            start2 = time.clock()
             new_coords = old_coords + np.dot(mesh_coords - old_coords, plane_norm)*plane_norm
             cache.setNode(old_node)
             coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, new_coords.tolist())
+            end2 = time.clock()
+
+            test_coords = old_coords
+            old_coords = new_coords
 
             # Break in case we can not converge
             it += 1
             if it > max_iterations:
                 print(f'Could not converge on node {nodeKey}')
                 break
+
+
+
+            print(f'Find mesh took: {end-start}')
+            print(f'Update search took: {end2-start2}')
+            print(f'Stop evaluation took: {end3-start3}')
+            start3 = time.clock()
+        print(f'Node {nodeKey} was solved in {it-1} iterations' )
+
+
 
     def updateGrid(self, new_point_id, new_point):
         index = self.node_corner_list.index(new_point_id)
@@ -222,71 +248,6 @@ class EcgGraphics(object):
             self.moveNode(i + self.numberInModel + 1, eeg_coord[i][0], eeg_coord[i][2])
 
         self._scene.endChange()
-
-    def createEEGPoints(self, region, eeg_group, eeg_coord, i, cache):
-        # createEEGPoints creates subgroups of points that use the 'colour' field to change colour
-
-        # Re-aquire openzinc variables
-        fm = region.getFieldmodule()
-        coordinates = fm.findFieldByName('coordinates')
-        coordinates = coordinates.castFiniteElement()
-        colour = fm.findFieldByName('colour')
-        colour = colour.castFiniteElement()
-
-        # Create templates
-        nodes = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
-        nodetemplate = nodes.createNodetemplate()
-        nodetemplate.defineField(coordinates)
-        nodetemplate.setValueNumberOfVersions(coordinates, -1, Node.VALUE_LABEL_VALUE, 1)
-        nodetemplate.defineField(colour)
-        nodetemplate.setValueNumberOfVersions(colour, -1, Node.VALUE_LABEL_VALUE, 1)
-
-        # Assign values for the new EEG subset
-        eeg_group.removeAllNodes()
-        eegNode = nodes.createNode(self.numberInModel + i + 1, nodetemplate)
-        cache.setNode(eegNode)
-        coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, eeg_coord[i])
-
-        # Find the z location of mesh for our new node
-        mesh = fm.findMeshByName('mesh3d')
-        mesh_location = fm.createFieldStoredMeshLocation(mesh)
-        found_mesh_location = fm.createFieldFindMeshLocation(coordinates, coordinates, mesh)
-        found_mesh_location.setSearchMode(found_mesh_location.SEARCH_MODE_NEAREST)
-
-        # Use the FindMeshLocation function as a solver to see where the model intersects our gird point in a
-        # particular axis ( currently using the y axis as this is the surface of the heart you see in open surgery )
-        it = 1
-        tol = .002
-        global_coords = [3, 3, 3]
-        while abs(abs(global_coords[0]) - abs(eeg_coord[i][0])) > tol \
-                or abs(abs(global_coords[2]) - abs(eeg_coord[i][2])) > tol:
-            # ^^ test if x and y changes are within tolerence
-
-            # if i == 16:
-            #     break
-
-            # Find nearest mesh location
-            [el, coords] = found_mesh_location.evaluateMeshLocation(cache, 3)
-            cache.setMeshLocation(el, coords)
-            [result, global_coords] = coordinates.evaluateReal(cache, 3)
-
-            # Update our search location
-            # eegNodeSearch = nodes.createNode(1000 + self.numberInModel + i + 1, nodetemplate)
-            cache.setNode(eegNode)
-            coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1,
-                                          [eeg_coord[i][0],
-                                           global_coords[1],
-                                           eeg_coord[i][2]])
-            # cache.setNode(eegNodeSearch)
-
-            # Break in case we can not converge
-            it += 1
-            if it > 0:
-                print(f'Could not converge on node {i}')
-                break
-
-        # Create the final node with our search coordinates
-        eeg_group.addNode(eegNode)
 
     def createEEGPointsWithNormal(self, region, eeg_group, eeg_coord, i, cache):
         # createEEGPoints creates subgroups of points that use the 'colour' field to change colour
@@ -313,7 +274,7 @@ class EcgGraphics(object):
         coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, eeg_coord[i])
 
         #user our solver to find the nodes location
-        self.moveNode(self.numberInModel + i + 1)
+        self.moveNode(self.numberInModel + i + 1, cache)
 
         # Create the final node with our search coordinates
         eeg_group.addNode(eegNode)
@@ -335,7 +296,7 @@ class EcgGraphics(object):
             self.node_corner_points[3] = point4
 
         # Add EEG nodes
-        eeg_coord = self.generateGridPoints4( number_on_side)
+        eeg_coord = self.generateGridPoints4(number_on_side)
         self.eegSize = len(eeg_coord)
 
         # Add Spectrum
@@ -381,31 +342,33 @@ class EcgGraphics(object):
             self.pointattrList[i].setBaseSize([.05, .05, .05])
 
         # Add a colour bar for the spectrum
-        screen_coords = fm.createFieldFiniteElement(2)
-        spectrum_template = nodes.createNodetemplate()
-        spectrum_template.defineField(screen_coords)
-        spectrum_node = nodes.createNode(1000, spectrum_template)
-        cache.setNode(spectrum_node)
-        screen_coords.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, [-.95, -.78])
-        fng = fm.createFieldNodeGroup(nodes)
-        spectrum_group = fng.getNodesetGroup()
-        spectrum_group.addNode(spectrum_node)
+        check = nodes.findNodeByIdentifier(1000)
+        if not check.isValid():
+            screen_coords = fm.createFieldFiniteElement(2)
+            spectrum_template = nodes.createNodetemplate()
+            spectrum_template.defineField(screen_coords)
+            spectrum_node = nodes.createNode(1000, spectrum_template)
+            cache.setNode(spectrum_node)
+            screen_coords.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, [-.95, -.78])
+            fng = fm.createFieldNodeGroup(nodes)
+            spectrum_group = fng.getNodesetGroup()
+            spectrum_group.addNode(spectrum_node)
 
 
-        spectrum_graphics = scene.createGraphicsPoints()
-        spectrum_graphics.setScenecoordinatesystem(Scenecoordinatesystem.SCENECOORDINATESYSTEM_NORMALISED_WINDOW_FIT_BOTTOM)
-        spectrum_graphics.setFieldDomainType(Field.DOMAIN_TYPE_NODES)
-        spectrum_graphics.setCoordinateField(screen_coords)
-        spectrum_graphics.setSubgroupField(fng)
-        spectrum_graphics.setSpectrum(spec)
-        spectrum_point_attr = spectrum_graphics.getGraphicspointattributes()
+            spectrum_graphics = scene.createGraphicsPoints()
+            spectrum_graphics.setScenecoordinatesystem(Scenecoordinatesystem.SCENECOORDINATESYSTEM_NORMALISED_WINDOW_FIT_BOTTOM)
+            spectrum_graphics.setFieldDomainType(Field.DOMAIN_TYPE_NODES)
+            spectrum_graphics.setCoordinateField(screen_coords)
+            spectrum_graphics.setSubgroupField(fng)
+            spectrum_graphics.setSpectrum(spec)
+            spectrum_point_attr = spectrum_graphics.getGraphicspointattributes()
 
-        gm = self._scene.getGlyphmodule()
-        colour_bar = gm.createGlyphColourBar(spec)
-        colour_bar.setLabelDivisions(6)
+            gm = self._scene.getGlyphmodule()
+            colour_bar = gm.createGlyphColourBar(spec)
+            colour_bar.setLabelDivisions(6)
 
-        spectrum_point_attr.setGlyph(colour_bar)
-        spectrum_point_attr.setBaseSize([.3, .4,])
+            spectrum_point_attr.setGlyph(colour_bar)
+            spectrum_point_attr.setBaseSize([.3, .4,])
 
         scene.endChange()
 

@@ -187,8 +187,8 @@ class MasterModel(object):
         self._plane_model.setSettings(settings['image_plane_settings'])
         self._fiducial_marker_model.setSettings(settings['fiducial-markers'])
         try:
-            grid_points = settings['ECG_grid']
-            self._ecgGraphics.setSettings(grid_points)
+            if settings['ECG_grid'] is not None:
+                self._ecgGraphics.setSettings(settings['ECG_grid'])
         except KeyError:
             pass
 
