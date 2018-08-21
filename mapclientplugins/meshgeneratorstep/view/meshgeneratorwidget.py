@@ -559,7 +559,8 @@ class MeshGeneratorWidget(QtGui.QWidget):
         self._meshTypeChanged(9)
         self._meshTypeChanged(10)
         pm = Blackfynn_2d_plate(self._generator_model._region, self._ecg_graphics.node_coordinate_list)
-        pm.drawMesh(self._generator_model._region, self._ecg_graphics.node_coordinate_list)
+        pm.generateMesh()
+        pm.drawMesh()
 
 
     def _displayElementNumbersClicked(self):
