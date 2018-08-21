@@ -14,6 +14,9 @@ from functools import partial
 from mapclientplugins.meshgeneratorstep.model.fiducialmarkermodel import FIDUCIAL_MARKER_LABELS
 from mapclientplugins.meshgeneratorstep.view.ui_meshgeneratorwidget import Ui_MeshGeneratorWidget
 from mapclientplugins.meshgeneratorstep.model.blackfynnECGgraphics import EcgGraphics
+from mapclientplugins.meshgeneratorstep.model.blackfynnMesh import Blackfynn_2d_plate
+
+from opencmiss.zinc.node import Node
 
 from opencmiss.utils.maths import vectorops
 import time
@@ -247,8 +250,10 @@ class MeshGeneratorWidget(QtGui.QWidget):
             if self.pw is not None:
                 self.line.setValue(round(value, 3)) # adjust time marker
             if self._ui.displayEEGAnimation_checkBox.isChecked() and self.data is not False:
+                pass
                 # use model to update colours
-                self.updateAllNodes(value)
+                #self.updateAllNodes(value)
+            self.updatePlate(value)
         self._ui.timeValue_doubleSpinBox.blockSignals(False)
 
     def updateAllNodes(self, time):
@@ -256,6 +261,26 @@ class MeshGeneratorWidget(QtGui.QWidget):
         for key in self.data['scaled']:
             colours_at_current_time.append(self.data['scaled'][key][self.currentFrame(time)])
         self._ecg_graphics.updateEEGnodeColours(colours_at_current_time)
+
+    def updatePlate(self, time):
+        colours_at_current_time = []
+        for key in self.data['scaled']:
+            colours_at_current_time.append(self.data['scaled'][key][self.currentFrame(time)])
+        self.updatePlateColoursTemporary(colours_at_current_time)
+
+    def updatePlateColoursTemporary(self, values):
+        reg = self._generator_model._region.findChildByName('ecg_plane')
+        fm = reg.getFieldmodule()
+        fm.beginChange()
+        cache = fm.createFieldcache()
+        colour = fm.findFieldByName('colour2')
+        colour = colour.castFiniteElement()
+        nodeset = fm.findNodesetByName('nodes')
+        for i in range(10000, 10064):
+            node = nodeset.findNodeByIdentifier(i)
+            cache.setNode(node)
+            colour.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, values[(i % (len(values)-1))])
+        fm.endChange()
 
     def scaleCacheData(self):
         tempDict = {}
@@ -271,12 +296,28 @@ class MeshGeneratorWidget(QtGui.QWidget):
         yterp = np.interp(xterp, x, y)
         return yterp
 
+    def initialiseSpectrum(self, data):
+        maximum = -1000000
+        minimum = 1000000
+        for key in data['cache']:
+            array_max = max(data['cache'][key])
+            array_min = min(data['cache'][key])
+            maximum = max(array_max, maximum)
+            minimum = min(array_min, minimum)
+        scene = self._generator_model._region.findChildByName('ecg_plane').getScene()
+        specMod = scene.getSpectrummodule()
+        spectrum = specMod.findSpectrumByName('eegColourSpectrum2')
+        spectrum_component = spectrum.getFirstSpectrumcomponent()
+        spectrum_component.setRangeMaximum(maximum)
+        spectrum_component.setRangeMinimum(minimum)
 
     def _EEGAnimationClicked(self):
         if self.data and self._ecg_graphics.initialised is False:
 
             self.scaleCacheData()
-            self._ecg_graphics.setRegion(self._generator_model.getRegion())
+
+            self._ecg_graphics.setRegion(self._generator_model._region)
+
 
             if len(self._ui.sceneviewer_widget.grid) >= 4:
                 self._ecg_graphics.plane_normal = self._ui.sceneviewer_widget.plane_normal
@@ -285,12 +326,13 @@ class MeshGeneratorWidget(QtGui.QWidget):
                                                   point2=self._ui.sceneviewer_widget.grid[1],
                                                   point3=self._ui.sceneviewer_widget.grid[2],
                                                   point4=self._ui.sceneviewer_widget.grid[3])
+
                 self._ui.sceneviewer_widget.grid = []
             else:
                 if self._ecg_graphics.settingsLoaded:
                     self._ecg_graphics.createGraphics()
                 else:
-                    self._ecg_graphics.createGraphics()
+                    self._ecg_graphics.createGraphics(new_points=True)
             self._ecg_graphics.initialiseSpectrum(self.data)
             self._ecg_graphics.initialised = True
 
@@ -362,6 +404,8 @@ class MeshGeneratorWidget(QtGui.QWidget):
             self._ui.api_secret.setText('***************************')
             self.blackfynn.loaded = True
 
+
+
             # need to add the blackfynn data initialisation here
     def initialiseBlackfynnData(self):
         # self.blackfynn.api_key = self._ui.api_key.text()  <- commented so that we do not have to enter key each time
@@ -370,6 +414,8 @@ class MeshGeneratorWidget(QtGui.QWidget):
         self.blackfynn.set_params(channels='LG4', window_from_start=16) # need to add dataset selection
         self.data = self.blackfynn.get()
         self.updatePlot(4)
+        self.scaleCacheData()
+        self.initialiseSpectrum(self.data)
 
     def updatePlot(self, key):
 
@@ -424,9 +470,10 @@ class MeshGeneratorWidget(QtGui.QWidget):
         meshTypeName = self._ui.meshType_comboBox.itemText(index)
         self._generator_model.setMeshTypeByName(meshTypeName)
         self._refreshMeshTypeOptions()
-        self._ecg_graphics.initialised = False
-        self._ecg_graphics.createGraphics()
+        #self._ecg_graphics.createGraphics()
+        self.scaleCacheData()
         self._ecg_graphics.initialiseSpectrum(self.data)
+
 
     def _meshTypeOptionCheckBoxClicked(self, checkBox):
         self._generator_model.setMeshTypeOption(checkBox.objectName(), checkBox.isChecked())
@@ -507,6 +554,13 @@ class MeshGeneratorWidget(QtGui.QWidget):
 
     def _displayAxesClicked(self):
         self._generator_model.setDisplayAxes(self._ui.displayAxes_checkBox.isChecked())
+        #for testing
+        self._ecg_graphics.deleteAll()
+        self._meshTypeChanged(9)
+        self._meshTypeChanged(10)
+        pm = Blackfynn_2d_plate(self._generator_model._region, self._ecg_graphics.node_coordinate_list)
+        pm.drawMesh(self._generator_model._region, self._ecg_graphics.node_coordinate_list)
+
 
     def _displayElementNumbersClicked(self):
         self._generator_model.setDisplayElementNumbers(self._ui.displayElementNumbers_checkBox.isChecked())
@@ -569,7 +623,7 @@ class MeshGeneratorWidget(QtGui.QWidget):
             self._ui.sceneviewer_widget._calculatePointOnPlane = None
             self._ui.sceneviewer_widget.mousePressEvent = self._original_mousePressEvent
             if self._ui.sceneviewer_widget.foundNode and len(self._ui.sceneviewer_widget.grid) is 2:
-                #self.updatePlot(self._ui.sceneviewer_widget.nodeKey)
+                #self.updatePlot(self._ui.sceneviewer_widget.nodeKey) # updates plot if a node is clicked
                 if self._ui.sceneviewer_widget.nodeKey in self._ecg_graphics.node_corner_list:
                     self._ecg_graphics.updateGrid(self._ui.sceneviewer_widget.nodeKey,  self._ui.sceneviewer_widget.grid[1])
                 self._ui.sceneviewer_widget.foundNode = False

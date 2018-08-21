@@ -433,6 +433,21 @@ class MeshGeneratorModel(MeshAlignmentModel):
         surfaces.setExterior(self.isDisplaySurfacesExterior() if (meshDimension == 3) else False)
         surfacesMaterial = self._materialmodule.findMaterialByName('trans_blue' if self.isDisplaySurfacesTranslucent() else 'solid_blue')
         surfaces.setMaterial(surfacesMaterial)
+
+        colour = fm.findFieldByName('colour2')
+        colour = colour.castFiniteElement()
+
+        # Add Spectrum
+        scene = region.getScene()
+        spcmod = scene.getSpectrummodule()
+        spec = spcmod.getDefaultSpectrum()
+        spec.setName('eegColourSpectrum2')
+
+
+        # Set attributes for our mesh
+        surfaces.setSpectrum(spec)
+        surfaces.setDataField(colour)
+
         surfaces.setName('displaySurfaces')
         surfaces.setVisibilityFlag(self.isDisplaySurfaces())
 
@@ -482,6 +497,18 @@ class MeshGeneratorModel(MeshAlignmentModel):
         self.applyAlignment()
         scene.endChange()
 
+    def updateEEGnodeColours(self, values):
+
+        fm = self._region.getFieldmodule()
+        cache = fm.createFieldcache()
+        colour = fm.findFieldByName('colour2')
+        colour = colour.castFiniteElement()
+        nodeset = fm.findNodesetByName('nodes')
+        for i in range(1, 64):
+            node = nodeset.findNodeByIdentifier(i)
+            cache.setNode(node)
+            colour.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, values[(i % (len(values) - 1))])
+        fm.endChange()
 
     def writeModel(self, file_name):
         self._region.writeFile(file_name)
