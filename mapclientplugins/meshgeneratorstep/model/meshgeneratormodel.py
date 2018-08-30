@@ -373,6 +373,43 @@ class MeshGeneratorModel(MeshAlignmentModel):
         name = mesh.getName()
         print(name)
 
+    def deleteAll(self):
+        self._scene = self._region.getScene()
+        fm = self._region.getFieldmodule()
+        fm.beginChange()
+        # logger = self._context.getLogger()
+        # annotationGroups = self._currentMeshType.generateMesh(self._region, self._settings['meshTypeOptions'])
+        #         # loggerMessageCount = logger.getNumberOfMessages()
+        # if loggerMessageCount > 0:
+        #     for i in range(1, loggerMessageCount + 1):
+        #         print(logger.getMessageTypeAtIndex(i), logger.getMessageTextAtIndex(i))
+        #     logger.removeAllMessages()
+        mesh = self._getMesh()
+        # meshDimension = mesh.getDimension()
+        nodes = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
+        if len(self._deleteElementRanges) > 0:
+            deleteElementIdentifiers = []
+            elementIter = mesh.createElementiterator()
+            element = elementIter.next()
+            while element.isValid():
+                identifier = element.getIdentifier()
+                for deleteElementRange in self._deleteElementRanges:
+                    if (identifier >= deleteElementRange[0]) and (identifier <= deleteElementRange[1]):
+                        deleteElementIdentifiers.append(identifier)
+                element = elementIter.next()
+            #print('delete elements ', deleteElementIdentifiers)
+            for identifier in deleteElementIdentifiers:
+                element = mesh.findElementByIdentifier(identifier)
+                mesh.destroyElement(element)
+            del element
+            # destroy all orphaned nodes
+            #size1 = nodes.getSize()
+            nodes.destroyAllNodes()
+            #size2 = nodes.getSize()
+            #print('deleted', size1 - size2, 'nodes')
+        fm.defineAllFaces()
+        fm.endChange()
+
     def initialiseTimeSequences(self, data):
         fm = self._region.getFieldmodule()
         cache = fm.createFieldcache()
@@ -413,7 +450,8 @@ class MeshGeneratorModel(MeshAlignmentModel):
         nodeNumbers.setCoordinateField(coordinates)
         pointattr = nodeNumbers.getGraphicspointattributes()
         pointattr.setLabelField(cmiss_number)
-        pointattr.setGlyphShapeType(Glyph.SHAPE_TYPE_NONE)
+        pointattr.setGlyphShapeType(Glyph.SHAPE_TYPE_SPHERE)
+        pointattr.setBaseSize([0.02,0.02,0.02])
         nodeNumbers.setVisibilityFlag(self.isDisplayNodeNumbers())
         nodeNumbers.setMaterial(self._materialmodule.findMaterialByName('white'))
         nodeNumbers.setName('displayNodeNumbers')
@@ -441,12 +479,19 @@ class MeshGeneratorModel(MeshAlignmentModel):
         scene = region.getScene()
         spcmod = scene.getSpectrummodule()
         spec = spcmod.getDefaultSpectrum()
-        spec.setName('eegColourSpectrum2')
+        spec.setName('eegColourSpectrum')
+
+        spcc = spec.getFirstSpectrumcomponent()
+        spcc.setRangeMaximum(1000)
+        spcc.setRangeMinimum(-8000)
 
 
         # Set attributes for our mesh
         surfaces.setSpectrum(spec)
         surfaces.setDataField(colour)
+
+        nodeNumbers.setSpectrum(spec)
+        nodeNumbers.setDataField(colour)
 
         surfaces.setName('displaySurfaces')
         surfaces.setVisibilityFlag(self.isDisplaySurfaces())

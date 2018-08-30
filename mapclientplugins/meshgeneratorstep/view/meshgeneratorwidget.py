@@ -141,6 +141,7 @@ class MeshGeneratorWidget(QtGui.QWidget):
         self._ui.fiducialMarker_comboBox.currentIndexChanged.connect(self._fiducialMarkerChanged)
         self._ui.submitButton.clicked.connect(self._submitClicked)
         self._ui.displayEEGAnimation_checkBox.clicked.connect(self._EEGAnimationClicked)
+        self._ui.pushButton.clicked.connect(self._exportWebGLJson)
         # self._ui.treeWidgetAnnotation.itemSelectionChanged.connect(self._annotationSelectionChanged)
         # self._ui.treeWidgetAnnotation.itemChanged.connect(self._annotationItemChanged)
 
@@ -253,7 +254,7 @@ class MeshGeneratorWidget(QtGui.QWidget):
                 pass
                 # use model to update colours
                 #self.updateAllNodes(value)
-            self.updatePlate(value)
+            #self.updatePlate(value)
         self._ui.timeValue_doubleSpinBox.blockSignals(False)
 
     def updateAllNodes(self, time):
@@ -318,7 +319,7 @@ class MeshGeneratorWidget(QtGui.QWidget):
 
             self._ecg_graphics.setRegion(self._generator_model._region)
 
-
+            # create our ecg graphics if we have defined a box
             if len(self._ui.sceneviewer_widget.grid) >= 4:
                 self._ecg_graphics.plane_normal = self._ui.sceneviewer_widget.plane_normal
                 self._ecg_graphics.createGraphics(new_points=True,
@@ -405,8 +406,6 @@ class MeshGeneratorWidget(QtGui.QWidget):
             self.blackfynn.loaded = True
 
 
-
-            # need to add the blackfynn data initialisation here
     def initialiseBlackfynnData(self):
         # self.blackfynn.api_key = self._ui.api_key.text()  <- commented so that we do not have to enter key each time
         # self.blackfynn.api_secret = self._ui.api_secret.text()
@@ -471,8 +470,7 @@ class MeshGeneratorWidget(QtGui.QWidget):
         self._generator_model.setMeshTypeByName(meshTypeName)
         self._refreshMeshTypeOptions()
         #self._ecg_graphics.createGraphics()
-        self.scaleCacheData()
-        self._ecg_graphics.initialiseSpectrum(self.data)
+
 
 
     def _meshTypeOptionCheckBoxClicked(self, checkBox):
@@ -554,18 +552,80 @@ class MeshGeneratorWidget(QtGui.QWidget):
 
     def _displayAxesClicked(self):
         self._generator_model.setDisplayAxes(self._ui.displayAxes_checkBox.isChecked())
-        #for testing
+        # for testing, we delete our ecg nodes and reload the entire mesh
         self._ecg_graphics.deleteAll()
         self._meshTypeChanged(9)
         self._meshTypeChanged(10)
+
+        # prepare data
+        self.scaleCacheData()
+        self._ecg_graphics.initialiseSpectrum(self.data)
+        ECGmatrix = []
+        for key in self.data['cache']:
+            ECGmatrix.append(self.data['cache'][key][0::10])
+        for i in range(len(ECGmatrix)):
+            ECGmatrix[i].append(ECGmatrix[i][-1])
+        ECGtimes = np.linspace(0, 1, len(ECGmatrix[:][0]))
+
+        # clear all of the current mesh data by going to a mesh with nothing in it
+        self._generator_model.deleteAll()
+        # self._meshTypeChanged(3)
+
+        # create our new mesh with the Blackfynn_2d_plate class
         pm = Blackfynn_2d_plate(self._generator_model._region, self._ecg_graphics.node_coordinate_list)
+        pm.ECGtimes = ECGtimes.tolist()
+        pm.ECGcoloursMatrix = ECGmatrix
         pm.generateMesh()
         pm.drawMesh()
 
 
+    def _exportWebGLJson(self):
+        '''
+            Export graphics into JSON formats. Returns an array containing the
+       string buffers for each export
+            '''
+
+        try:
+            self.data
+            ECGmatrix = []
+            for key in self.data['cache']:
+                ECGmatrix.append(self.data['cache'][key][0::10])
+            for i in range(len(ECGmatrix)):
+                ECGmatrix[i].append(ECGmatrix[i][-1])
+            ECGtimes = np.linspace(0, 1, len(ECGmatrix[:][0]))
+
+            ecg_region = self._generator_model._region.findChildByName('ecg_plane')
+            scene = ecg_region.getScene()
+            sceneSR = scene.createStreaminformationScene()
+            sceneSR.setIOFormat(sceneSR.IO_FORMAT_THREEJS)
+            sceneSR.setInitialTime(ECGtimes[0])
+            sceneSR.setFinishTime(ECGtimes[-1])
+            sceneSR.setNumberOfTimeSteps(len(ECGtimes))
+            sceneSR.setOutputTimeDependentColours(1)
+
+            # Get the total number of graphics in a scene/region that can be exported
+            number = sceneSR.getNumberOfResourcesRequired()
+            resources = []
+            # Write out each graphics into a json file which can be rendered with our
+            # WebGL script
+            for i in range(number):
+                resources.append(sceneSR.createStreamresourceMemory())
+            scene.write(sceneSR)
+            # Write out each resource into their own file
+
+            buffer = [resources[i].getBuffer()[1] for i in range(number)]
+
+            for i, content in enumerate(buffer):
+                f = open(f'webGLExport{i+1}.json', 'w')
+                f.write(content)
+        except:
+            pass
+
     def _displayElementNumbersClicked(self):
         self._generator_model.setDisplayElementNumbers(self._ui.displayElementNumbers_checkBox.isChecked())
 
+
+        self.exportWebGLJson([1,2,3,4])
     def _displayLinesClicked(self):
         self._generator_model.setDisplayLines(self._ui.displayLines_checkBox.isChecked())
         self._autoPerturbLines()
@@ -631,6 +691,7 @@ class MeshGeneratorWidget(QtGui.QWidget):
 
 
 
+
 def mousePressEvent(self, event):
     if self._active_button != QtCore.Qt.NoButton:
         return
@@ -660,6 +721,8 @@ def mousePressEvent(self, event):
             self.grid = []
 
     return [event.x(), event.y()]
+
+
 
 
 def _calculatePointOnPlane(self, x, y):
