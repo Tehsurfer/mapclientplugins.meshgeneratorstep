@@ -134,17 +134,17 @@ class EcgGraphics(object):
         ns = number_on_side
         ns1 = number_on_side - 1
 
-        plane_normal_offset = .4
+        plane_normal_offset = .4  # For offsetting the solver to solve from outside the mesh -> on it
 
         grid_coord = []
         for i in range(number_on_side):
             for j in range(number_on_side):
 
-                # Create our weightings
+                # Create our weightings (since we are setting points in a ccwise fashion our diagonal is w3
                 w1 = i*j/(ns1**2)
                 w2 = (j/ns1) * (ns1 - i)/ns1
-                w3 = (i/ns1) * (ns1 - j)/ns1
-                w4 = ((ns1-i)*(ns1-j))/(ns1**2)
+                w4 = (i/ns1) * (ns1 - j)/ns1  # The 'bottom left' point, p4
+                w3 = ((ns1-i)*(ns1-j))/(ns1**2)  # The diagonal point, p3
 
                 # Use our weightings to find coordinates of our new point
                 x = p4[0] * w1 + p3[0] * w2 + p2[0] * w3 + p1[0] * w4
@@ -280,8 +280,8 @@ class EcgGraphics(object):
             # ^^ test if x and y changes are within tolerence
             # Find nearest mesh location
 
-            [el, coords] = found_mesh_location.evaluateMeshLocation(cache, 3)
-            cache.setMeshLocation(el, coords)
+            [element, local_coords] = found_mesh_location.evaluateMeshLocation(cache, 3)
+            cache.setMeshLocation(element, local_coords)
             [result, mesh_coords] = coordinates.evaluateReal(cache, 3)
 
             # Update our search location
@@ -324,19 +324,11 @@ class EcgGraphics(object):
         colour = fm.findFieldByName('colour')
         colour = colour.castFiniteElement()
 
-        # Create templates
-        nodes = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
-        nodetemplate = nodes.createNodetemplate()
-        nodetemplate.defineField(coordinates)
-        nodetemplate.setValueNumberOfVersions(coordinates, -1, Node.VALUE_LABEL_VALUE, 1)
-        nodetemplate.defineField(colour)
-        nodetemplate.setValueNumberOfVersions(colour, -1, Node.VALUE_LABEL_VALUE, 1)
-
-        # Assign values for the new EEG subset
-        eeg_group.removeAllNodes()
         eegNode = nodes.createNode(self.numberInModel + i + 1, nodetemplate)
         cache.setNode(eegNode)
         coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, eeg_coord[i])
+
+
 
         #user our solver to find the nodes location
         self.moveNode(self.numberInModel + i + 1, cache)
@@ -351,6 +343,7 @@ class EcgGraphics(object):
         scene = self._region.getScene()
         scene.beginChange()
         coordinates = fm.findFieldByName('coordinates')
+        coordinates = coordinates.castFiniteElement()
         cache = fm.createFieldcache()
 
         #save points
@@ -385,27 +378,48 @@ class EcgGraphics(object):
         colour = fm.createFieldFiniteElement(1)
         colour.setName('colour')
         colour.setManaged(True)
+        # Create new graphics for our subgroup
+        nodeColours = self._scene.createGraphicsPoints()
+        nodeColours.setFieldDomainType(Field.DOMAIN_TYPE_NODES)
+        nodeColours.setCoordinateField(coordinates)
+
+        # create new subgroup containing our node
+        fng = fm.createFieldNodeGroup(fm.findNodesetByName('nodes'))
+        ndsg = fng.getNodesetGroup()
+        ndsg.removeAllNodes()
+
+        # Create templates
+        nodes = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
+        nodetemplate = nodes.createNodetemplate()
+        nodetemplate.defineField(coordinates)
+        nodetemplate.setValueNumberOfVersions(coordinates, -1, Node.VALUE_LABEL_VALUE, 1)
+        nodetemplate.defineField(colour)
+        nodetemplate.setValueNumberOfVersions(colour, -1, Node.VALUE_LABEL_VALUE, 1)
+
+        # Assign values for the new EEG subset
+
+
         for i in range(len(eeg_coord)):
-            # Create new graphics for our subgroup
-            self.nodeColours.append(scene.createGraphicsPoints())
-            self.nodeColours[i].setFieldDomainType(Field.DOMAIN_TYPE_NODES)
-            self.nodeColours[i].setCoordinateField(coordinates)
+            eegNode = nodes.createNode(self.numberInModel + i + 1, nodetemplate)
+            cache.setNode(eegNode)
+            coordinates.setNodeParameters(cache, -1, Node.VALUE_LABEL_VALUE, 1, eeg_coord[i])
 
-            # create new subgroup containing our node
-            fng = fm.createFieldNodeGroup(fm.findNodesetByName('nodes'))
-            self.ndsg.append(fng.getNodesetGroup())
-            self.ndsg[i].removeAllNodes()
-            self.createEEGPointsWithNormal(self._region, self.ndsg[i], eeg_coord, i, cache)
-            self.nodeColours[i].setSubgroupField(fng)
+            # user our solver to find the nodes location
+            self.moveNode(self.numberInModel + i + 1, cache)
 
-            # Set attributes for our new node
-            self.nodeColours[i].setSpectrum(spec)
-            self.nodeColours[i].setDataField(colour)
-            self.pointattrList.append(self.nodeColours[i].getGraphicspointattributes())
-            # self.pointattrList[i].setLabelText(1, f'ECG Node {i}')
-            # self.pointattrList[i].setLabelOffset([1.5, 1.5, 0])
-            self.pointattrList[i].setGlyphShapeType(Glyph.SHAPE_TYPE_SPHERE)
-            self.pointattrList[i].setBaseSize([.05, .05, .05])
+            # Create the final node with our search coordinates
+            ndsg.addNode(eegNode)
+
+        self.ndsg = ndsg
+
+        nodeColours.setSubgroupField(fng)
+
+        # Set attributes for our new node
+        nodeColours.setSpectrum(spec)
+        nodeColours.setDataField(colour)
+        pointattr = nodeColours.getGraphicspointattributes()
+        # pointattr.setGlyphShapeType(Glyph.SHAPE_TYPE_SPHERE)
+        # pointattr.setBaseSize([.05, .05, .05])
 
         # Add a colour bar for the spectrum
         check = nodes.findNodeByIdentifier(1000)
